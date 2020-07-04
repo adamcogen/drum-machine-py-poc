@@ -7,8 +7,9 @@ import sys
 
 class DrumMachineThread(threading.Thread): # this thread runs the drum machine timer loop
 
-        def __init__(self, dao):
+        def __init__(self, dao, gui_status):
                 self.dao = dao
+                self.gui_status = gui_status
                 threading.Thread.__init__(self)
                 self.start()
 
@@ -32,7 +33,7 @@ class DrumMachineThread(threading.Thread): # this thread runs the drum machine t
                 outport = mido.open_output('IAC Driver Bus 1')
                 millisecond = 1_000_000 # default tick length is 1 millisecond. timer measures nanoseconds. 
                 startTime = perf_counter_ns()
-                while(not_exited):
+                while(self.gui_status.is_not_exited()):
                         if(not self.dao.is_paused() and perf_counter_ns() - startTime >= millisecond):
                                 self.play_notes(outport, self.dao.get_all_notes_at_current_tick())
                                 self.dao.increment_current_tick()
@@ -251,7 +252,7 @@ class DrumMachineDAO:
                 self.loop_params = loop_params
                 self.current_tick = 0
                 self.loop = Loop(loop_params)
-                self.paused = False
+                self.paused = True
 
         def is_paused(self):
                 return self.paused
@@ -327,8 +328,9 @@ class GUIParams:
                 return self.row_width
 
 class GUI:
-        def __init__(self, dao):
+        def __init__(self, dao, gui_status):
                 self.dao = dao
+                self.gui_status = gui_status
                 self.set_subdivisions_button = None
                 self.start_gui()
 
@@ -357,37 +359,52 @@ class GUI:
                 self.pause_button_rectangles["inner"] = self.canvas.create_rectangle(top_left_x + 3, top_left_y + 3, top_left_x + 17, top_left_y + 17, fill="gray94")
                 self.pause_button_rectangles["left"] = self.canvas.create_rectangle(top_left_x + 7, top_left_y + 7, top_left_x + 9, top_left_y + 13, fill="indian red")
                 self.pause_button_rectangles["right"] = self.canvas.create_rectangle(top_left_x + 11, top_left_y + 7, top_left_x + 13, top_left_y + 13, fill="indian red")
+                self.pause_button_rectangles["triangle"] = self.canvas.create_polygon([top_left_x + 7, top_left_y + 7, top_left_x + 13, top_left_y + 10, top_left_x + 7, top_left_y + 13], fill="indian red", outline="black")
 
         def adjust_pause_button(self):
                 color = "gray94"
                 if self.dao.is_paused():
+                        self.canvas.itemconfig(self.pause_button_rectangles["left"], state="hidden")
+                        self.canvas.itemconfig(self.pause_button_rectangles["right"], state="hidden")
+                        self.canvas.itemconfig(self.pause_button_rectangles["triangle"], state="normal")
+                else:
                         color = "gray64"
+                        self.canvas.itemconfig(self.pause_button_rectangles["left"], state="normal")
+                        self.canvas.itemconfig(self.pause_button_rectangles["right"], state="normal")
+                        self.canvas.itemconfig(self.pause_button_rectangles["triangle"], state="hidden")
                 self.canvas.itemconfig(self.pause_button_rectangles["inner"], fill=color)
 
         def draw_add_button(self, top_left_x, top_left_y):
-                icon_color = "green"
+                icon_color = self.note_selected_color
                 self.add_button_rectangles = {}
                 self.add_button_rectangles["outer"] = self.canvas.create_rectangle(top_left_x, top_left_y, top_left_x + 20, top_left_y + 20, fill="gray94")
                 self.add_button_rectangles["inner"] = self.canvas.create_rectangle(top_left_x + 3, top_left_y + 3, top_left_x + 17, top_left_y + 17, fill="gray94")
-                self.add_button_rectangles["horizontal border"] = self.canvas.create_rectangle(top_left_x + 5, top_left_y + 8, top_left_x + 16, top_left_y + 13, fill="black", outline="")
-                self.add_button_rectangles["vertical border"] = self.canvas.create_rectangle(top_left_x + 8, top_left_y +5, top_left_x + 13, top_left_y + 16, fill="black", outline="")
-                self.add_button_rectangles["horizontal"] = self.canvas.create_rectangle(top_left_x + 6, top_left_y + 9, top_left_x + 15, top_left_y + 12, fill=icon_color, outline="")
-                self.add_button_rectangles["vertical"] = self.canvas.create_rectangle(top_left_x + 9, top_left_y + 6, top_left_x + 12, top_left_y + 15, fill=icon_color, outline="")
+                self.add_button_rectangles["square"] = self.canvas.create_rectangle(top_left_x + 6, top_left_y + 6, top_left_x + 14, top_left_y + 14, fill=icon_color)
+                self.add_button_rectangles["horizontal stripe 1"] = self.canvas.create_rectangle(top_left_x + 6, top_left_y + 8, top_left_x + 15, top_left_y + 9, fill=icon_color, outline="")
+                self.add_button_rectangles["horizontal stripe 2"] = self.canvas.create_rectangle(top_left_x + 6, top_left_y + 12, top_left_x + 15, top_left_y + 13, fill=icon_color, outline="")
+                self.add_button_rectangles["vertical stripe 1"] = self.canvas.create_rectangle(top_left_x + 8, top_left_y + 6, top_left_x + 9, top_left_y + 15, fill=icon_color, outline="")
+                self.add_button_rectangles["vertical stripe 2"] = self.canvas.create_rectangle(top_left_x + 12, top_left_y + 6, top_left_x + 13, top_left_y + 15, fill=icon_color, outline="")
 
         def adjust_add_button(self):
-                color = "gray94"
+                rectangle_color = self.note_selected_color
+                rectangle_state = "normal"
                 if self.gui.is_adding:
                         self.set_note_and_velocity_entries(self.new_note_before_selection)
-                        color = "gray64"
                         if self.selections["current selected row index"] is not None and self.selections["current selected beat"] is not None:
                                 self.canvas.itemconfig(self.rectangles[self.selections["current selected row index"]][self.selections["current selected beat"]], fill=self.note_on_color)
                         self.selections["current selected row index"] = None
                         self.selections["current selected beat"] = None
                         self.selections["previous selected row index"] = None
                         self.selections["previous selected beat"] = None
+                        rectangle_state = "hidden"
+                        rectangle_color = self.note_on_color
                 else: # we are going into 'selection' mode
                         self.new_note_before_selection = Note(self.new_midi_note, self.new_midi_velocity)
-                self.canvas.itemconfig(self.add_button_rectangles["inner"], fill=color)
+                self.canvas.itemconfig(self.add_button_rectangles["horizontal stripe 1"], state=rectangle_state)
+                self.canvas.itemconfig(self.add_button_rectangles["horizontal stripe 2"], state=rectangle_state)
+                self.canvas.itemconfig(self.add_button_rectangles["vertical stripe 1"], state=rectangle_state)
+                self.canvas.itemconfig(self.add_button_rectangles["vertical stripe 2"], state=rectangle_state)
+                self.canvas.itemconfig(self.add_button_rectangles["square"], fill=rectangle_color)
 
         def set_note_and_velocity_entries(self, note):
                 self.note_entry.delete(0, tk.END)
@@ -660,8 +677,7 @@ class GUI:
 
         def on_close(self):
             self.gui.destroy()
-            global not_exited
-            not_exited = False
+            self.gui_status.exit()
             sys.exit()
 
         def refresh_canvas_size(self):
@@ -708,12 +724,21 @@ class GUI:
                 self.gui.protocol("WM_DELETE_WINDOW", self.on_close)
                 self.gui.mainloop()
 
-not_exited = True
+class GUIStatus:
+        def __init__(self):
+                self.not_exited = True
+
+        def exit(self):
+                self.not_exited = False
+
+        def is_not_exited(self):
+                return self.not_exited
 
 def main():
-    loop_params = LoopParams(2_500, 19)
-    dao = DrumMachineDAO(loop_params)
-    drum_thread = DrumMachineThread(dao)
-    gui = GUI(dao)
+        loop_params = LoopParams(2_500, 19)
+        dao = DrumMachineDAO(loop_params)
+        gui_status = GUIStatus()
+        drum_thread = DrumMachineThread(dao, gui_status)
+        gui = GUI(dao, gui_status)
 
 main()

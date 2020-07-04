@@ -1,8 +1,10 @@
+# Polyrhythmic Drum machine
+
 ## About
 
 Every drum machine I've ever encountered only lets you subdivide using powers of two (quarter note, 8th note, 16th, 32nd, etc.) and triplets. This is a drum machine that lets you subdivide measures by any number you want!!!!! The drum machine just outputs midi, the same way a hardware midi controller keyboard would, so you can map any midi-triggered drum samples to work with it. The drum machine doesn't handle audio samples, it just outputs midi. You can use a DAW or something to map samples to each midi note.
 
-I'd recommend closing any applications you don't need to have open when running this, because having a bunch of stuff open on your computer will make **the machine** run slow.
+I'd recommend closing any applications you don't need to have open when running this, because having a bunch of stuff open on your computer will make the **machine** run slow.
 
 Currently the drum machine has literally **no** input validation. If you give it bad text inputs it will throw errors and crash etc.
 
@@ -25,7 +27,7 @@ Run these commands in your computer's `terminal` application, one at a time.
          brew update
          brew upgrade python3
 
-         # then install mido and rtmidi, for python midi support
+         # then install mido and python-rtmidi, for python midi support
          pip3 install mido
          pip3 install python-rtmidi
 
@@ -71,6 +73,10 @@ Normally tempo is defined in terms of beats-per-minute, but with so much freedom
 
 - You can do some simple math to find useful subdivisions. If you have one row with a subdivision of 4 and you want to set another row to be subdivided into 4 groups of 7, `4 x 7 = 28`; for 4 groups of 11, `4 x 11 = 44`; etc. You can do all sorts of multiplication to find useful subdivisions.
 
+- Sometimes it can be helpful to add blank 'reference rows' with common subdivisions (4, 8, etc.) so that you can easily see how the timing of a more uncommon subdivision lines up with it. If you want to make a row with a subdivision of 44 sound similar to 8th notes, you can add a blank second row with a subdivision of 8 to use as a visual point of reference.
+
+- It might be easier to visualize and keep track of the pattern you're working on if you generally try to stick to using one drum sound (i.e. one pitch) per row. This isn't enforced by the software but I find that it usually makes sense visually and from an organizational standpoint.
+
 #### Save-file format
 
 You can save and load patterns as `.txt` files. Their format will be (anything between brackets `[]` would be replaced with actual data):
@@ -79,7 +85,7 @@ You can save and load patterns as `.txt` files. Their format will be (anything b
     number_of_rows: [number]
     [subdivision of first row] [beat, zero-indexed],[pitch],[velocity] [beat, zero-indexed],[pitch],[velocity] [etc.]
     [... more similar rows ...]
-    [subdivision of last row] [beat, zero-indexed],[pitch],[velocity] [beat, zero-indexed],[pitch],[velocity] [etc.]
+    [subdivision of last row] [beat number, zero-indexed],[pitch],[velocity] [beat number, zero-indexed],[pitch],[velocity] [etc.]
 
 ## Editing the code for extra functionality
 
