@@ -2,7 +2,6 @@ import mido
 from time import perf_counter_ns
 import tkinter as tk
 import threading
-import sys
 
 class DrumMachineThread(threading.Thread): # this thread runs the drum machine timer loop
 
@@ -16,9 +15,6 @@ class DrumMachineThread(threading.Thread): # this thread runs the drum machine t
                 self.run_loop()
 
         def set_default_loop(self):
-                bass_drum = Note(36)
-                snare = Note(37)
-                clave = Note(43)
                 self.dao.set_subdivision_for_row(4, 0)
                 self.dao.set_subdivision_for_row(8, 1)
                 self.dao.set_subdivision_for_row(8, 2)
@@ -130,7 +126,7 @@ class Row:
                 tick = self.get_tick_of_beat(beat)
                 return self.get_note_at_tick(tick)
 
-        def get_beat_at_tick(self, tick):
+        def get_beat_at_tick(self, tick): # figure out what beat a particular tick is a part of, e.g. "tick 312 falls within beat 3"
                 for index in range(0, self.subdivision):
                         if (index + 1 == self.subdivision) or (tick < self.get_tick_of_beat(index + 1)):
                                 return index
@@ -141,16 +137,6 @@ class Row:
                 return int((loop_length * beat) / self.subdivision)
 
 class Loop:
-
-        # what mvp logic do we need?
-        # not done:
-        #       - note and velocity labels for existing notes!!! this is tricky and will maybe take some serious thought
-        #       - remove all 'None's from all_notes array. that way we will DEFINITELY see a performance improvement by using all_notes :)
-        # things that are a little beyond mvp:
-        #       - save and load loops
-        #       - delete a single row? probably can be easily done though, maybe set subdivision to 0 and the row is deleted
-        #       - all gui params changeable on-screen (row width, canvas height, etc.)
-        #       - some kind of scrolling mechanism so we can make longer loops without needing to make the window wider?
 
         def __init__(self, loop_params):
                 self.loop_params = loop_params
@@ -201,7 +187,7 @@ class Loop:
                         self.all_notes.append([None] * self.loop_params.get_number_of_rows())
 
         def get_all_notes_at_tick(self, tick):
-                return self.all_notes[tick] # the all_notes array is an array containing all notes for each tick. it gets updated on each 'set' operation. this is to cut down the number of array accesses during time-sensistive playback.
+                return self.all_notes[tick] # all_notes: array containing all notes for each tick. gets updated on 'set' operations. cuts down the number of array accesses during time-sensistive playback.
 
         def update_all_notes_array_for_tick_for_row(self, note, tick, row_index):
             array_for_tick = self.all_notes[tick] # update the all_notes_array one tick at a time, rather than reinitializing the entire array
@@ -348,43 +334,23 @@ class GUI:
                                 note_top_left_y = box_top_left_y + (row_height * row_index)
                                 note_bottom_left_x = note_top_left_x + note_width
                                 note_bottom_left_y = note_top_left_y + row_height
-                                color = "SlateGray1"
+                                color = self.note_off_color
                                 if self.dao.get_note_at_beat_for_row(note_index, row_index) is not None:
-                                        color = "pale green"
+                                        color = self.note_on_color
                                 self.rectangles[row_index].append(self.canvas.create_rectangle(note_top_left_x, note_top_left_y, note_bottom_left_x, note_bottom_left_y, fill=color))
 
         def draw_pause_button(self, top_left_x, top_left_y):
                 self.pause_button_rectangles = {}
-                self.pause_button_rectangles["outer"] = self.canvas.create_rectangle(10, 10, 30, 30, fill="gray94")
-                self.pause_button_rectangles["inner"] = self.canvas.create_rectangle(13, 13, 27, 27, fill="gray94")
-                self.pause_button_rectangles["left"] = self.canvas.create_rectangle(17, 17, 19, 23, fill="indian red")
-                self.pause_button_rectangles["right"] = self.canvas.create_rectangle(21, 17, 23, 23, fill="indian red")
+                self.pause_button_rectangles["outer"] = self.canvas.create_rectangle(top_left_x, top_left_y, top_left_x + 20, top_left_y + 20, fill="gray94")
+                self.pause_button_rectangles["inner"] = self.canvas.create_rectangle(top_left_x + 3, top_left_y + 3, top_left_x + 17, top_left_y + 17, fill="gray94")
+                self.pause_button_rectangles["left"] = self.canvas.create_rectangle(top_left_x + 7, top_left_y + 7, top_left_x + 9, top_left_y + 13, fill="indian red")
+                self.pause_button_rectangles["right"] = self.canvas.create_rectangle(top_left_x + 11, top_left_y + 7, top_left_x + 13, top_left_y + 13, fill="indian red")
 
         def adjust_pause_button(self):
                 color = "gray94"
                 if self.dao.is_paused():
                         color = "gray64"
                 self.canvas.itemconfig(self.pause_button_rectangles["inner"], fill=color)
-
-        def toggle_rectangle(self, row_index, beat):
-                current_note = self.dao.get_note_at_beat_for_row(beat, row_index)
-                new_color = "SlateGray1"
-                note = None
-                if current_note is None:
-                        new_color = "pale green"
-                        note = Note(self.new_midi_note, self.new_midi_velocity)
-                self.dao.set_note_at_beat_for_row(note, beat, row_index)
-                self.canvas.itemconfig(self.rectangles[row_index][beat], fill=new_color)
-
-        def figure_out_clicked_rectangle(self, click_x, click_y):
-                top_left_x = self.gui_params.get_box_top_left_x()
-                row_width = self.gui_params.get_row_width()
-                top_left_y = self.gui_params.get_box_top_left_y()
-                row_height = self.gui_params.get_row_height()
-                number_of_rows = self.dao.get_loop_params().get_number_of_rows()
-                row_index = int((click_y - top_left_y) / (row_height))
-                beat = int((click_x - top_left_x) / (row_width / self.dao.get_subdivision_for_row(row_index)))
-                self.toggle_rectangle(row_index, beat)
 
         def handle_click(self, event):
                 click_x = event.x
@@ -396,29 +362,46 @@ class GUI:
                 number_of_rows = self.dao.get_loop_params().get_number_of_rows()
                 if (top_left_x <= click_x) and (click_x <= top_left_x + row_width) and (top_left_y <= click_y) and (click_y <= top_left_y + (row_height * number_of_rows)):
                         self.figure_out_clicked_rectangle(click_x, click_y)
-                if 10 <= click_x and click_x <= 30 and 10 <= click_y and click_y <= 30:
+                if self.pause_top_left_x <= click_x and click_x <= self.pause_top_left_x + 20 and self.pause_top_left_y <= click_y and click_y <= self.pause_top_left_y + 20:
                         self.dao.toggle_paused()
                         self.adjust_pause_button()
 
-        def note_entry_callback(self, param):
-                self.new_midi_note = int(param)
+        def figure_out_clicked_rectangle(self, click_x, click_y):
+                top_left_x = self.gui_params.get_box_top_left_x()
+                row_width = self.gui_params.get_row_width()
+                top_left_y = self.gui_params.get_box_top_left_y()
+                row_height = self.gui_params.get_row_height()
+                number_of_rows = self.dao.get_loop_params().get_number_of_rows()
+                row_index = int((click_y - top_left_y) / (row_height))
+                beat = int((click_x - top_left_x) / (row_width / self.dao.get_subdivision_for_row(row_index)))
+                self.toggle_rectangle(row_index, beat)
+
+        def toggle_rectangle(self, row_index, beat):
+                current_note = self.dao.get_note_at_beat_for_row(beat, row_index)
+                new_color = self.note_off_color
+                note = None
+                if current_note is None:
+                        new_color = self.note_on_color
+                        note = Note(self.new_midi_note, self.new_midi_velocity)
+                self.dao.set_note_at_beat_for_row(note, beat, row_index)
+                self.canvas.itemconfig(self.rectangles[row_index][beat], fill=new_color)
 
         def draw_note_entry(self, top_left_x, top_left_y):
                 self.new_midi_note = 36
                 note_entry = tk.Entry(self.gui, highlightthickness=0, font="Calibri 10", width=3)
                 note_entry.insert('end', '36')
-                note_entry.place(x=top_left_x, y=top_left_y + 2)
+                note_entry.place(x=top_left_x, y=top_left_y + 6)
                 button = tk.Button(self.gui, text="set midi note",  width=8, command=lambda: self.note_entry_callback(note_entry.get()), highlightbackground=self.background_color)
                 button.place(x=top_left_x + 30, y=top_left_y)
 
-        def velocity_entry_callback(self, param):
-                self.new_midi_velocity = int(param)
+        def note_entry_callback(self, param):
+                self.new_midi_note = int(param)
 
         def draw_velocity_entry(self, top_left_x, top_left_y):
                 self.new_midi_velocity = 64
                 velocity_entry = tk.Entry(self.gui, highlightthickness=0, font="Calibri 10", width=3)
                 velocity_entry.insert('end', '64')
-                velocity_entry.place(x=top_left_x, y=top_left_y + 2)
+                velocity_entry.place(x=top_left_x, y=top_left_y + 6)
                 button = tk.Button(self.gui, text="set midi velocity", width=11, command=lambda: self.velocity_entry_callback(velocity_entry.get()), highlightbackground=self.background_color)
                 button.place(x=top_left_x + 30, y=top_left_y)
 
@@ -429,6 +412,20 @@ class GUI:
                         if old_subdivision != new_subdivision:
                                 self.dao.set_subdivision_for_row(new_subdivision, row_index)
                                 self.redraw_rectangle_row(row_index)
+
+        def velocity_entry_callback(self, param):
+                self.new_midi_velocity = int(param)
+
+        def draw_subdivision_entries(self):
+                self.subdivision_entries = []
+                for index in range(0, self.dao.get_loop_params().get_number_of_rows()):
+                        self.subdivision_entries.append(tk.Entry(self.gui, highlightthickness=0, font="Calibri 10", width=3))
+                        self.subdivision_entries[index].insert('end', self.dao.get_subdivision_for_row(index))
+                        self.subdivision_entries[index].place(x=self.gui_params.get_box_top_left_x() - 30, y=self.gui_params.get_box_top_left_y() + (index * self.gui_params.get_row_height()))
+                if self.set_subdivisions_button is None:
+                        self.set_subdivisions_button = tk.Button(self.gui, text="set subdivisions", width=11, command=self.subdivision_entry_callback, highlightbackground=self.background_color)
+                self.set_subdivisions_button.place(x=self.gui_params.get_box_top_left_x() - 30, 
+                        y=self.gui_params.get_box_top_left_y() + (self.dao.get_loop_params().get_number_of_rows() * self.gui_params.get_row_height() + 5))
 
         def redraw_rectangle_row(self, row_index):
                 for old_rectangle in self.rectangles[row_index]:
@@ -445,21 +442,17 @@ class GUI:
                         note_top_left_y = box_top_left_y + (row_height * row_index)
                         note_bottom_left_x = note_top_left_x + note_width
                         note_bottom_left_y = note_top_left_y + row_height
-                        color = "SlateGray1"
+                        color = self.note_off_color
                         if self.dao.get_note_at_beat_for_row(note_index, row_index) is not None:
-                                color = "pale green"
+                                color = self.note_on_color
                         self.rectangles[row_index].append(self.canvas.create_rectangle(note_top_left_x, note_top_left_y, note_bottom_left_x, note_bottom_left_y, fill=color))
 
-        def draw_subdivision_entries(self):
-                self.subdivision_entries = []
-                for index in range(0, self.dao.get_loop_params().get_number_of_rows()):
-                        self.subdivision_entries.append(tk.Entry(self.gui, highlightthickness=0, font="Calibri 10", width=3))
-                        self.subdivision_entries[index].insert('end', self.dao.get_subdivision_for_row(index))
-                        self.subdivision_entries[index].place(x=self.gui_params.get_box_top_left_x() - 30, y=self.gui_params.get_box_top_left_y() + (index * self.gui_params.get_row_height()))
-                if self.set_subdivisions_button is None:
-                        self.set_subdivisions_button = tk.Button(self.gui, text="set subdivisions", width=11, command=self.subdivision_entry_callback, highlightbackground=self.background_color)
-                self.set_subdivisions_button.place(x=self.gui_params.get_box_top_left_x() - 30, 
-                        y=self.gui_params.get_box_top_left_y() + (self.dao.get_loop_params().get_number_of_rows() * self.gui_params.get_row_height() + 5))
+        def draw_number_of_rows_entry(self, top_left_x, top_left_y):
+                number_of_rows_entry = tk.Entry(self.gui, highlightthickness=0, font="Calibri 10", width=3)
+                number_of_rows_entry.insert('end', str(self.dao.loop_params.get_number_of_rows()))
+                number_of_rows_entry.place(x=top_left_x, y=top_left_y + 6)
+                button = tk.Button(self.gui, text="set number of rows", width=13, command=lambda: self.set_number_of_rows_callback(number_of_rows_entry.get()), highlightbackground=self.background_color)
+                button.place(x=top_left_x + 30, y=top_left_y)
 
         def set_number_of_rows_callback(self, param):
                 rows_to_add = int(param) - self.dao.get_loop_params().get_number_of_rows()
@@ -478,27 +471,22 @@ class GUI:
                 self.subdivision_entries.clear()
                 self.draw_subdivision_entries()
 
-        def draw_number_of_rows_entry(self, top_left_x, top_left_y):
-                number_of_rows_entry = tk.Entry(self.gui, highlightthickness=0, font="Calibri 10", width=3)
-                number_of_rows_entry.insert('end', str(self.dao.loop_params.get_number_of_rows()))
-                number_of_rows_entry.place(x=top_left_x, y=top_left_y + 2)
-                button = tk.Button(self.gui, text="set number of rows", width=13, command=lambda: self.set_number_of_rows_callback(number_of_rows_entry.get()), highlightbackground=self.background_color)
-                button.place(x=top_left_x + 30, y=top_left_y)
-
-        def set_length_in_ticks_callback(self, param):
-                self.dao.set_length_in_ticks(int(param))
-
         def draw_length_in_ticks_entry(self, top_left_x, top_left_y):
                 length_entry = tk.Entry(self.gui, highlightthickness=0, font="Calibri 10", width=5)
                 length_entry.insert('end', str(self.dao.loop_params.get_length_in_ticks()))
-                length_entry.place(x=top_left_x, y=top_left_y + 2)
+                length_entry.place(x=top_left_x, y=top_left_y + 6)
                 button = tk.Button(self.gui, text="set millisecond length", highlightthickness=0, width=14, command=lambda: self.set_length_in_ticks_callback(length_entry.get()), highlightbackground=self.background_color)
                 button.place(x=top_left_x + 40, y=top_left_y)
+
+        def set_length_in_ticks_callback(self, param):
+                self.dao.set_length_in_ticks(int(param))
 
         def start_gui(self):
                 self.gui = tk.Tk()
                 self.gui.resizable(False, False)
                 self.background_color = "white"
+                self.note_on_color = "pale green"
+                self.note_off_color = "SlateGray1"
                 self.canvas = tk.Canvas(self.gui, width=600, height=500, background=self.background_color, highlightbackground=self.background_color)
                 self.gui_params = GUIParams(box_top_left_x = 80, box_top_left_y = 70, row_height = 20, row_width = 450)
                 self.initialize_rectangles()
@@ -508,9 +496,12 @@ class GUI:
                 self.draw_subdivision_entries()
                 self.draw_number_of_rows_entry(240, 3)
                 self.draw_length_in_ticks_entry(240, 30)
-                self.draw_pause_button(10, 10)
+                self.pause_top_left_x = 14
+                self.pause_top_left_y = 13
+                self.draw_pause_button(self.pause_top_left_x, self.pause_top_left_y)
                 self.adjust_pause_button()
                 self.canvas.pack()
+                self.gui.title("Polyrhythmic Drum Machine")
                 self.gui.protocol("WM_DELETE_WINDOW", self.gui.destroy)
                 self.gui.mainloop()
 
