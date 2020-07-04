@@ -1,5 +1,7 @@
 # Polyrhythmic Drum machine
 
+![Polyrhythmic drum machine](images/11s_and_7s.png "Polyrhythmic drum machine")
+
 ## About
 
 Every drum machine I've ever encountered only lets you subdivide using powers of two (quarter note, 8th note, 16th, 32nd, etc.) and triplets. This is a drum machine that lets you subdivide measures by any number you want!!!!! The drum machine just outputs midi, the same way a hardware midi controller keyboard would, so you can map any midi-triggered drum samples to work with it. The drum machine doesn't handle audio samples, it just outputs midi. You can use a DAW or something to map samples to each midi note.
